@@ -1,0 +1,16 @@
+{
+  "name": "ontology-modeling-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "engines": { "node": ">=22" },
+  "type": "module",
+  "description": "页面化 AI 本体建模工作台：上传表结构与样例数据 → AI 语义理解 → 生成 OWL → 交互式活图谱 → 编辑回写",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node check.mjs",
+    "test": "node scripts/test.mjs",
+    "release:check": "node scripts/release-check.mjs",
+    "release:zip": "node scripts/release.mjs"
+  }
+}

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本体建模工作台 · Ontology Studio</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">本体</div>
+    <div>
+      <div class="brand-title">本体建模工作台</div>
+      <div class="brand-sub"></div>
+    </div>
+  </div>
+  <div class="topbar-mid">
+    <label class="inline-label">项目</label>
+    <input id="project-name" class="input inline-input" value="未命名本体项目" spellcheck="false">
+    <span id="project-id" class="chip muted">尚未创建</span>
+  </div>
+  <div class="topbar-actions">
+    <button id="btn-recent" class="btn">最近项目</button>
+    <button id="btn-new" class="btn">新建项目</button>
+    <button id="btn-config" class="btn">模型配置</button>
+    <button id="btn-help" class="btn btn-ghost">使用说明</button>
+  </div>
+</header>
+
+<div class="steps" id="steps">
+  <div class="step" data-step="1"><span class="step-num">1</span><div><b>上传业务数据</b><small>表结构 · 文档 · 业务描述</small></div></div>
+  <div class="step" data-step="2"><span class="step-num">2</span><div><b>理解稿＋图谱确认</b><small>出稿 · 确认主体与关系</small></div></div>
+  <div class="step" data-step="3"><span class="step-num">3</span><div><b>OWL 校验</b><small>确定性编译与校验</small></div></div>
+  <div class="step" data-step="4"><span class="step-num">4</span><div><b>规则与 SQL</b><small>文档 → 审查规则 → SQL</small></div></div>
+  <div class="step" data-step="5"><span class="step-num">5</span><div><b>实体详情</b><small>实体 · 关系 · 关联规则</small></div></div>
+  <div class="step" data-step="6"><span class="step-num">6</span><div><b>实例图谱</b><small>同一批数据 → ABox</small></div></div>
+</div>
+
+<main class="workspace">
+
+  <!-- 左栏：材料与流程 -->
+  <aside class="pane pane-left">
+    <section class="pane-section">
+      <h3>材料录入</h3>
+      <div id="dropzone" class="dropzone">
+        <div class="dropzone-title">拖入或选择你自己业务的表结构</div>
+        <div class="dropzone-hint">Excel / 字段字典 / SQL / CSV / OWL<br>表结构截图、制度或流程截图也能直接传（走 deepseek-flash 读图）<br>多张表可以拆成多个文件一起传，系统合并成一个模型</div>
+        <button id="btn-pick" class="btn btn-primary btn-sm" type="button">选择文件</button>
+        <input id="file-input" type="file" multiple hidden accept=".xlsx,.xlsm,.json,.sql,.csv,.tsv,.txt,.md,.owl,.ttl,.nt,.rdf,.xml,.png,.jpg,.jpeg,.webp,.bmp,.gif">
+      </div>
+      <div id="file-list" class="file-list"><div class="empty-hint"></div></div>
+    </section>
+
+    <section class="pane-section">
+      <h3>业务描述 / 口径说明</h3>
+      <textarea id="business-desc" class="textarea" rows="4" placeholder="用业务语言补充：这些表在讲什么业务、有哪些必须遵守的规则、哪些概念是同一个意思……"></textarea>
+      <label class="field-label">命名空间 IRI</label>
+      <input id="namespace" class="input" value="https://example.org/ontology/studio#" spellcheck="false">
+      <button id="btn-parse" class="btn btn-primary btn-block">解析材料 · 建立规范模型</button>
+      <div id="material-stats" class="mini-stats"></div>
+    </section>
+
+    <section class="pane-section" id="conflict-panel" hidden>
+      <h3 class="warn-title">口径漂移警告</h3>
+      <div class="warn-note"></div>
+      <div id="conflict-list"></div>
+    </section>
+
+    <section class="pane-section">
+      <h3>项目记录</h3>
+      <div id="history-list" class="history"><div class="empty-hint">暂无操作记录</div></div>
+    </section>
+  </aside>
+
+  <!-- 中栏：活图谱 -->
+  <section class="pane pane-center">
+    <div class="canvas-toolbar">
+      <div class="graph-tabs" role="tablist" aria-label="图谱图层">
+        <button id="layer-schema" class="graph-tab active" role="tab" aria-selected="true">逻辑图谱</button>
+        <button id="layer-instance" class="graph-tab" role="tab" aria-selected="false">实例图谱</button>
+      </div>
+      <span class="divider"></span>
+      <button id="btn-relayout" class="btn btn-sm">重新布局</button>
+      <button id="btn-fit" class="btn btn-sm">适配画布</button>
+      <button id="zoom-out" class="btn btn-sm btn-icon" title="缩小">−</button>
+      <button id="zoom-in" class="btn btn-sm btn-icon" title="放大">＋</button>
+      <span id="zoom-label" class="chip muted">100%</span>
+      <button id="btn-toggle-labels" class="btn btn-sm">关系名：隐藏</button>
+      <span class="divider"></span>
+      <input id="graph-search" class="input input-sm" placeholder="搜索类 / 关系 / 实例">
+      <span class="toolbar-spacer"></span>
+      <button id="btn-add-class" class="btn btn-sm">+ 新增类</button>
+      <button id="btn-add-relation" class="btn btn-sm">+ 新增关系</button>
+    </div>
+
+    <div class="canvas-wrap" id="canvas-wrap">
+      <svg id="graph-svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="本体交互式图谱">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"></path>
+          </marker>
+          <marker id="arrow-active" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#1d4ed8"></path>
+          </marker>
+        </defs>
+        <g id="viewport"><g id="edge-layer"></g><g id="node-layer"></g></g>
+      </svg>
+      <div id="graph-empty" class="graph-empty">
+        <div id="graph-empty-title" class="graph-empty-title">图谱尚未生成</div>
+        <div id="graph-empty-hint" class="empty-hint"></div>
+        <button id="graph-empty-action" class="btn btn-sm" hidden></button>
+      </div>
+      <div id="selection-badge" class="selection-badge" hidden></div>
+      <div id="graph-relstrip" class="rel-strip" hidden></div>
+    </div>
+
+    <div class="canvas-footer">
+      <div class="legend">
+        <span><i class="dot dot-class"></i>业务对象（类）</span>
+        <span><i class="dot dot-rel"></i>实例（真实单据）</span>
+        <span><i class="line line-confirmed"></i>已确认关系</span>
+        <span><i class="line line-pending"></i>待确认关系</span>
+        <span><i class="line line-parent"></i>类层级</span>
+      </div>
+      <div id="graph-stats" class="canvas-stats">0 节点 / 0 边</div>
+    </div>
+    <div id="graph-hint" class="graph-hint">滚轮缩放 · 拖动平移 · 拖动节点调整位置</div>
+  </section>
+
+  <!-- 右栏：建议 / 编辑 / OWL -->
+  <aside class="pane pane-right">
+    <div class="gate-strip" id="gate-strip">理解稿未定稿 · 业务关系待命名 0 条 · 规则未设立</div>
+    <div class="tabs">
+      <button id="tab-understanding" class="tab">理解稿</button>
+      <button id="tab-ledger" class="tab">图谱确认</button>
+      <button id="tab-owl" class="tab">OWL 校验</button>
+      <button id="tab-rules" class="tab">规则设立</button>
+      <button id="tab-instance" class="tab">实例数据</button>
+      <button id="tab-detail" class="tab active">详情编辑</button>
+    </div>
+
+    <div id="panel-understanding" class="tab-panel" hidden>
+      <div class="panel-block">
+        <h3>业务理解稿 · 我们的理解对不对</h3>
+        <div id="understanding-status" class="mode-line">尚未生成理解稿</div>
+        <div class="row-btns">
+          <button id="btn-understanding-ai" class="btn btn-sm btn-primary">调用模型出理解稿</button>
+          <button id="btn-understanding-manual" class="btn btn-sm">手工建模</button>
+          <button id="btn-understanding-prefill" class="btn btn-sm">用表原名预填</button>
+        </div>
+        <div id="understanding-warnings" class="warning-box" hidden></div>
+      </div>
+      <div class="panel-block" id="manual-block">
+        <h3>手工建模 · 逐表填写业务含义</h3>
+        <div id="manual-tables" class="manual-list"><div class="empty-hint">上传材料后显示待填表清单</div></div>
+        <label class="field-label">链路阶段（每行一个，按顺序）</label>
+        <textarea id="manual-stages" class="textarea" rows="3" placeholder="准备&#10;发生&#10;归档"></textarea>
+        <button id="btn-understanding-generate" class="btn btn-primary btn-block">生成理解稿 v1</button>
+      </div>
+      <div class="panel-block">
+        <h3>链路阶段与依赖</h3>
+        <div id="understanding-stages" class="flow-box">尚未生成理解稿</div>
+        <div id="understanding-deps" class="ledger-list"></div>
+      </div>
+      <div class="panel-block">
+        <h3>每张表的业务含义与局部批注</h3>
+        <div id="understanding-tables" class="ledger-list"><div class="empty-hint">尚未生成理解稿</div></div>
+      </div>
+      <div class="panel-block">
+        <h3>缺口与待补</h3>
+        <div id="understanding-gaps" class="ledger-list"></div>
+        <div class="row-btns">
+          <button id="btn-understanding-annot" class="btn btn-sm">+ 添加一条批注</button>
+          <button id="btn-understanding-finalize" class="btn btn-sm btn-primary">理解无误 · 去图谱确认</button>
+        </div>
+        <div id="understanding-annotations" class="annot-list"></div>
+        <div id="understanding-diff" class="flow-box" hidden></div>
+        <button id="btn-understanding-reopen" class="btn btn-block" hidden>重新开启理解稿（保留定稿快照）</button>
+      </div>
+    </div>
+
+    <div id="panel-ledger" class="tab-panel" hidden>
+      <div class="panel-block">
+        <h3>业务关系确认</h3>
+        <div id="ledger-status" class="mode-line">尚未生成理解稿</div>
+        <div id="ledger-stats" class="mini-stats"></div>
+        <div class="row-btns">
+          <button id="btn-rel-all-name" class="btn btn-sm">全部标为「关联」</button>
+          <button id="btn-rel-all-drop" class="btn btn-sm">全部删除</button>
+          <button id="btn-rel-submit" class="btn btn-sm btn-primary">确认并生成 OWL</button>
+        </div>
+        <div id="relation-list" class="ledger-list"></div>
+      </div>
+      <div class="panel-block"><h3>业务链路（按理解稿阶段）</h3><div id="ledger-flow" class="flow-box"></div></div>
+    </div>
+
+
+    <div id="panel-rules" class="tab-panel" hidden>
+      <div class="panel-block">
+        <h3>规则设立</h3>
+        <div id="rules-status" class="mode-line">尚未生成审查规则</div>
+        <div id="rules-context" class="mini-stats"></div>
+        <div class="row-btns">
+          <button id="btn-rule-parse" class="btn btn-sm btn-primary">解析文档并生成规则</button>
+          <button id="btn-rule-export" class="btn btn-sm">导出 SQL</button>
+          <select id="rule-dialect" class="input input-sm">
+            <option value="ansi">标准 SQL</option>
+            <option value="mysql">MySQL</option>
+            <option value="postgresql">PostgreSQL</option>
+          </select>
+        </div>
+      </div>
+      <div class="panel-block">
+        <h3>审查依据（条款文字或文档）</h3>
+        <textarea id="rule-text" class="textarea" rows="5" placeholder="粘贴客户制度、审查要点、对账口径原文；也可从下面上载文档"></textarea>
+        <input id="rule-file-input" type="file" hidden accept=".txt,.md,.csv,.json,.sql">
+        <div class="row-btns">
+          <button id="btn-rule-pick" class="btn btn-sm">上载文档</button>
+          <button id="btn-rule-clear" class="btn btn-sm">清空</button>
+        </div>
+        <div id="rule-file-name" class="muted small"></div>
+      </div>
+      <div class="panel-block">
+        <h3>规则清单与 SQL</h3>
+        <div id="rules-list" class="ledger-list"></div>
+      </div>
+    </div>
+
+    <div id="panel-instance" class="tab-panel" hidden>
+      <div class="panel-block">
+        <h3>实例数据</h3>
+        <div id="instance-status" class="mode-line">尚未装载单据数据</div>
+        <div class="note-line">第 1 步上传的表格里带数据行时，<b>编译 OWL 后系统会直接用这批行出实例图谱</b>，不用再传一遍。这里只用于补充或替换成更完整、更新的单据：一个表一个文件（CSV / xlsx），<b>文件名或 sheet 名要与表名一致</b>，字段名与表结构对齐。<b>直接传单据照片也行</b>（入库单、发票、合同页的截图或拍照），系统按已知表结构把图里的单据读成数据行。</div>
+        <div id="inst-dropzone" class="dropzone dropzone-sm">
+          <div class="dropzone-title">补传单据数据（可选）</div>
+          <div class="dropzone-hint">CSV / xlsx / 单据照片，可多个文件一起；装载会覆盖这批实例</div>
+          <button id="btn-inst-pick" class="btn btn-primary btn-sm" type="button">选择文件</button>
+          <input id="inst-file-input" type="file" multiple hidden accept=".csv,.tsv,.xlsx,.xlsm,.png,.jpg,.jpeg,.webp,.bmp,.gif">
+        </div>
+        <div id="inst-file-list" class="file-list"><div class="empty-hint">还没有选择单据文件</div></div>
+        <button id="btn-instance-load" class="btn btn-primary btn-block">装载并生成实例图谱</button>
+        <div id="instance-stats" class="mini-stats"></div>
+      </div>
+      <div class="panel-block">
+        <h3>关系落地</h3>
+        <div id="instance-relations" class="validation-summary">尚未装载数据</div>
+        <div id="instance-rel-list" class="integrity-list"></div>
+      </div>
+      <div class="panel-block">
+        <h3>完整性检查</h3>
+        <div id="integrity-summary" class="validation-summary">尚未装载数据</div>
+        <div id="integrity-list" class="integrity-list"></div>
+      </div>
+      <div class="panel-block">
+        <h3>未能装载的文件或表</h3>
+        <div id="instance-unmatched" class="ledger-list"><div class="empty-hint">无</div></div>
+      </div>
+      <div class="panel-block">
+        <h3>导出实例层</h3>
+        <button class="btn btn-sm export-btn" data-format="abox">实例 ABox（OWL/XML）</button>
+        <div class="note-line">实例单独出一个文件，不重复类与属性定义；TBox 仍在「OWL 校验 · 导出产物」里取。</div>
+      </div>
+    </div>
+
+    <div id="panel-detail" class="tab-panel">
+      <div id="detail-empty" class="empty-panel">
+        <div class="empty-panel-title">未选中对象</div>
+        <div class="empty-hint">点击画布上的类或关系进行编辑</div>
+      </div>
+      <div id="detail-form" hidden>
+        <div id="detail-head" class="detail-head"></div>
+        <div id="detail-body" class="detail-body"></div>
+        <div id="detail-extra" class="detail-extra"></div>
+        <div class="detail-actions">
+          <button id="btn-save-edit" class="btn btn-primary btn-sm">应用修改</button>
+          <button id="btn-delete-edit" class="btn btn-danger btn-sm">删除该对象</button>
+          <button id="btn-add-rel-from" class="btn btn-sm" hidden>+ 从这里新增关系</button>
+          <button id="btn-cancel-edit" class="btn btn-sm">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-owl" class="tab-panel" hidden>
+      <div class="panel-block">
+        <h3>生成 OWL</h3>
+        <button id="btn-compile" class="btn btn-primary btn-block">生成 OWL 与活图谱</button>
+        <div id="validation-summary" class="validation-summary">尚未编译</div>
+        <div id="validation-list" class="validation-list"></div>
+      </div>
+      <div class="panel-block">
+        <h3>闭环：从 OWL 反解析</h3>
+        <textarea id="owl-paste" class="textarea mono" rows="4" placeholder="粘贴 OWL 内容，或选择本地 OWL 文件"></textarea>
+        <div class="row-btns">
+          <button id="btn-reparse-paste" class="btn btn-sm">从粘贴内容解析</button>
+          <button id="btn-pick-owl" class="btn btn-sm">选择 OWL 文件</button>
+          <input id="owl-file-input" type="file" hidden accept=".owl,.ttl,.nt,.rdf,.xml,.json,.txt">
+        </div>
+        <button id="btn-recompile" class="btn btn-block">把当前图谱编辑回写 OWL</button>
+      </div>
+      <div class="panel-block">
+        <h3>导出产物</h3>
+        <div class="export-grid">
+          <button class="btn btn-sm export-btn" data-format="owl">OWL/XML</button>
+          <button class="btn btn-sm export-btn" data-format="ttl">Turtle</button>
+          <button class="btn btn-sm export-btn" data-format="json">本体 JSON</button>
+          <button class="btn btn-sm export-btn" data-format="graph">图谱 JSON</button>
+          <button class="btn btn-sm export-btn" data-format="shacl">SHACL 形状</button>
+          <button class="btn btn-sm export-btn" data-format="nt">N-Triples</button>
+          <button class="btn btn-sm export-btn" data-format="model">规范模型</button>
+          <button class="btn btn-sm export-btn" data-format="rulesql">业务审查 SQL</button>
+          <button class="btn btn-sm export-btn" data-format="rulespec">规则清单</button>
+          <button class="btn btn-sm export-btn" data-format="understanding">业务理解稿</button>
+          <button class="btn btn-sm export-btn" data-format="abox">实例 ABox</button>
+        </div>
+      </div>
+      <div class="panel-block">
+        <h3>OWL 预览（前 12KB）</h3>
+        <pre id="owl-preview" class="code-preview">尚未生成</pre>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer class="statusbar">
+  <span id="status-text">就绪</span>
+  <span class="statusbar-spacer"></span>
+  <span id="status-meta" class="muted"></span>
+</footer>
+
+<div id="config-modal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head"><b>模型配置</b><button id="btn-close-config" class="btn btn-sm">关闭</button></div>
+    <label class="field-label" for="cfg-provider">服务商</label>
+    <select id="cfg-provider" class="input"><option value="">请选择服务商</option><option>DeepSeek</option><option>自定义兼容接口</option></select>
+    <label class="field-label" for="cfg-base">服务地址（HTTPS）</label>
+    <input id="cfg-base" class="input" value="" placeholder="填写模型服务商提供的 HTTPS 地址" spellcheck="false">
+    <label class="field-label" for="cfg-model">模型名</label>
+    <input id="cfg-model" class="input" value="" placeholder="填写你有权使用的模型名" spellcheck="false">
+    <label class="field-label" for="cfg-maxtokens">单次输出上限（tokens，按模型能力设置，默认 8192）</label>
+    <input id="cfg-maxtokens" class="input" type="number" min="512" max="262144" step="1024" value="8192">
+    <label class="field-label" for="cfg-key">API Key（留空表示不修改）</label>
+    <input id="cfg-key" class="input" type="password" autocomplete="off" aria-describedby="config-privacy">
+    <p id="config-privacy" class="muted">密钥保存在本机配置文件。调用 AI（包括上传图片识别）会把相关材料发送给你配置的服务商；图片需使用支持图片输入的模型。请确认材料可以发送。</p>
+    <label class="checkbox"><input id="cfg-custom" type="checkbox"> 允许自定义 HTTPS 地址</label>
+    <div class="row-btns">
+      <button id="btn-save-config" class="btn btn-primary btn-sm">保存配置</button>
+      <button id="btn-clear-key" class="btn btn-sm">清除密钥</button>
+    </div>
+    <div id="config-status" class="mode-line" role="status" aria-live="polite"></div>
+  </div>
+</div>
+
+<div id="recent-modal" class="modal" hidden>
+  <div class="modal-card modal-wide">
+    <div class="modal-head"><b>最近项目</b><button id="btn-close-recent" class="btn btn-sm">关闭</button></div>
+    <div class="note-line">服务重启后页面会回到空白状态，项目本身存在服务端磁盘上，点一条就能接着做。</div>
+    <div id="recent-list" class="ledger-list"><div class="empty-hint">读取中…</div></div>
+  </div>
+</div>
+
+<div id="help-modal" class="modal" hidden>
+  <div class="modal-card modal-wide">
+    <div class="modal-head"><b>使用说明与能力边界</b><button id="btn-close-help" class="btn btn-sm">关闭</button></div>
+    <div id="help-body" class="help-body"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="owl-parser.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

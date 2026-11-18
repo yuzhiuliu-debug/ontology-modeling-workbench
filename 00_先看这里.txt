@@ -1,0 +1,20 @@
+本体建模工作台 · 开源源码版
+
+启动：安装 Node.js 22 或更新版本，执行 node server.mjs，
+或双击对应系统的启动脚本。无需安装 npm 依赖。
+
+本版不含真实业务数据、已保存项目、预制业务规则或个人模型配置。
+首次启动时服务商、模型地址、模型名和密钥为空，由使用者自行配置。
+测试脚本仅在运行时构造虚构测试值，不作为产品内置数据。
+
+密钥及项目材料只应保存在本机运行目录。
+调用 AI 时，相关材料会发送给使用者配置的模型服务商，密钥用于鉴权；
+上传图片会调用模型识别。请先确认材料允许发送。
+
+请先阅读 README.md；详细操作见 docs/USER_GUIDE.md。
+开源前检查见 docs/OPEN_SOURCE_CHECKLIST.md。
+安全说明见 SECURITY.md，许可证为 Apache-2.0（LICENSE）。
+
+验证：npm test、npm run check、npm run release:check
+打包：npm run release:zip
+上传 GitHub 时使用 dist/ 内生成的源码包，不要上传本机工作目录或 data/。
